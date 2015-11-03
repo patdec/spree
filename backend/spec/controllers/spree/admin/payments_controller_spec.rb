@@ -2,7 +2,7 @@ require 'spec_helper'
 
 module Spree
   module Admin
-    describe PaymentsController do
+    describe PaymentsController, :type => :controller do
       stub_authorization!
 
       let(:order) { create(:order) }
@@ -13,16 +13,16 @@ module Spree
 
         before do
           attributes = {
-            :order_id => order.number,
-            :card => "new",
-            :payment => {
-              :amount => order.total,
-              :payment_method_id => payment_method.id.to_s,
-              :source_attributes => {
-                :name => "Test User",
-                :number => "4111 1111 1111 1111",
-                :expiry => "09 / #{Time.now.year + 1}",
-                :verification_value => "123"
+            order_id: order.number,
+            card: "new",
+            payment: {
+              amount: order.total,
+              payment_method_id: payment_method.id.to_s,
+              source_attributes: {
+                name: "Test User",
+                number: "4111 1111 1111 1111",
+                expiry: "09 / #{Time.current.year + 1}",
+                verification_value: "123"
               }
             }
           }
@@ -30,14 +30,14 @@ module Spree
         end
 
         it "should process payment correctly" do
-          order.payments.count.should == 1
+          expect(order.payments.count).to eq(1)
           expect(response).to redirect_to(spree.admin_order_payments_path(order))
           expect(order.reload.state).to eq('complete')
         end
 
         # Regression for #4768
         it "doesnt process the same payment twice" do
-          Spree::LogEntry.where(source: order.payments.first).count.should == 1
+          expect(Spree::LogEntry.where(source: order.payments.first).count).to eq(1)
         end
       end
 
@@ -49,8 +49,8 @@ module Spree
 
         it "loads backend payment methods" do
           spree_get :new, :order_id => order.number
-          response.status.should == 200
-          assigns[:payment_methods].should include(@payment_method)
+          expect(response.status).to eq(200)
+          expect(assigns[:payment_methods]).to include(@payment_method)
         end
       end
 
@@ -63,7 +63,7 @@ module Spree
         context "order does not have payments" do
           it "redirect to new payments page" do
             spree_get :index, { amount: 100, order_id: order.number }
-            response.should redirect_to(spree.new_admin_order_payment_path(order))
+            expect(response).to redirect_to(spree.new_admin_order_payment_path(order))
           end
         end
 

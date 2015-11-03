@@ -3,9 +3,9 @@ module Spree
     class VariantsController < ResourceController
       belongs_to 'spree/product', :find_by => :slug
       new_action.before :new_before
-      before_filter :load_data, :only => [:new, :create, :edit, :update]
+      before_action :load_data, only: [:new, :create, :edit, :update]
 
-      # override the destory method to set deleted_at value
+      # override the destroy method to set deleted_at value
       # instead of actually deleting the product.
       def destroy
         @variant = Variant.find(params[:id])
@@ -23,19 +23,20 @@ module Spree
 
       protected
         def new_before
-          @object.attributes = @object.product.master.attributes.except('id', 'created_at', 'deleted_at',
+          master = @object.product.master
+          @object.attributes = master.attributes.except('id', 'created_at', 'deleted_at',
                                                                         'sku', 'is_master')
           # Shallow Clone of the default price to populate the price field.
-          @object.default_price = @object.product.master.default_price.clone
+          @object.default_price = master.default_price.clone
         end
 
         def collection
           @deleted = (params.key?(:deleted) && params[:deleted] == "on") ? "checked" : ""
 
           if @deleted.blank?
-            @collection ||= super
+            @collection ||= super.includes(:default_price, option_values: :option_type)
           else
-            @collection ||= Variant.only_deleted.where(:product_id => parent.id)
+            @collection ||= Variant.only_deleted.where(product_id: parent.id)
           end
           @collection
         end

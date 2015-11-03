@@ -2,29 +2,32 @@
 
 require 'spec_helper'
 
-describe Spree::ShippingRate do
+describe Spree::ShippingRate, type: :model do
   let(:shipment) { create(:shipment) }
   let(:shipping_method) { create(:shipping_method) }
-  let(:shipping_rate) { Spree::ShippingRate.new(:shipment => shipment,
-                                                :shipping_method => shipping_method,
-                                                :cost => 10) }
+  let(:shipping_rate) do
+    Spree::ShippingRate.new shipment: shipment,
+                            shipping_method: shipping_method,
+                            cost: 10
+  end
 
   context "#display_price" do
     context "when tax included in price" do
+      let!(:default_zone) { create(:zone, default_tax: true) }
+      let(:default_tax_rate) do
+        create :tax_rate,
+               name: "VAT",
+               amount: 0.1,
+               included_in_price: true,
+               zone: default_zone
+      end
       context "when the tax rate is from the default zone" do
-        let!(:zone) { create(:zone, :default_tax => true) }
-        let(:tax_rate) do 
-          create(:tax_rate,
-            :name => "VAT",
-            :amount => 0.1,
-            :included_in_price => true,
-            :zone => zone)
-        end
 
-        before { shipping_rate.tax_rate = tax_rate }
+        before { shipping_rate.tax_rate = default_tax_rate }
 
         it "shows correct tax amount" do
-          expect(shipping_rate.display_price.to_s).to eq("$10.00 (incl. $0.91 #{tax_rate.name})")
+          expect(shipping_rate.display_price.to_s).
+            to eq("$10.00 (incl. $0.91 #{default_tax_rate.name})")
         end
 
         context "when cost is zero" do
@@ -38,20 +41,21 @@ describe Spree::ShippingRate do
         end
       end
 
-      context "when the tax rate is from a non-default zone" do
-        let!(:default_zone) { create(:zone, :default_tax => true) }
-        let!(:non_default_zone) { create(:zone, :default_tax => false) }
-        let(:tax_rate) do
-          create(:tax_rate,
-            :name => "VAT",
-            :amount => 0.1,
-            :included_in_price => true,
-            :zone => non_default_zone)
-        end
-        before { shipping_rate.tax_rate = tax_rate }
+      context "when the tax rate is from another zone" do
+        let!(:non_default_zone) { create(:zone, default_tax: false) }
 
-        it "shows correct tax amount" do
-          expect(shipping_rate.display_price.to_s).to eq("$10.00 (excl. $0.91 #{tax_rate.name})")
+        let(:non_default_tax_rate) do
+          create :tax_rate,
+                 name: "VAT",
+                 amount: 0.2,
+                 included_in_price: true,
+                 zone: non_default_zone
+        end
+        before { shipping_rate.tax_rate = non_default_tax_rate }
+
+        it "deducts the other zone's VAT from the calculated shipping rate" do
+          expect(shipping_rate.display_price.to_s).
+            to eq("$10.00 (incl. $1.67 #{non_default_tax_rate.name})")
         end
 
         context "when cost is zero" do
@@ -67,11 +71,12 @@ describe Spree::ShippingRate do
     end
 
     context "when tax is additional to price" do
-      let(:tax_rate) { create(:tax_rate, :name => "Sales Tax", :amount => 0.1) }
+      let(:tax_rate) { create(:tax_rate, name: "Sales Tax", amount: 0.1) }
       before { shipping_rate.tax_rate = tax_rate }
 
       it "shows correct tax amount" do
-        expect(shipping_rate.display_price.to_s).to eq("$10.00 (+ $1.00 #{tax_rate.name})")
+        expect(shipping_rate.display_price.to_s).
+          to eq("$10.00 (+ $1.00 #{tax_rate.name})")
       end
 
       context "when cost is zero" do
@@ -86,12 +91,12 @@ describe Spree::ShippingRate do
     end
 
     context "when the currency is JPY" do
-      let(:shipping_rate) { shipping_rate = Spree::ShippingRate.new(:cost => 205)
-                            shipping_rate.stub(:currency => "JPY")
-                            shipping_rate }
+      let(:shipping_rate) { Spree::ShippingRate.new(cost: 205) }
+
+      before { allow(shipping_rate).to receive_messages(currency: "JPY") }
 
       it "displays the price in yen" do
-        shipping_rate.display_price.to_s.should == "¥205"
+        expect(shipping_rate.display_price.to_s).to eq("¥205")
       end
     end
   end
@@ -103,7 +108,7 @@ describe Spree::ShippingRate do
     end
 
     it "can be retrieved even when deleted" do
-      shipping_method.update_column(:deleted_at, Time.now)
+      shipping_method.update_column(:deleted_at, Time.current)
       shipping_rate.save
       shipping_rate.reload
       expect(shipping_rate.shipping_method).to eq(shipping_method)
@@ -122,10 +127,20 @@ describe Spree::ShippingRate do
     end
 
     it "can be retrieved even when deleted" do
-      tax_rate.update_column(:deleted_at, Time.now)
+      tax_rate.update_column(:deleted_at, Time.current)
       shipping_rate.save
       shipping_rate.reload
       expect(shipping_rate.tax_rate).to eq(tax_rate)
+    end
+  end
+
+  context "#shipping_method_code" do
+    before do
+      shipping_method.code = "THE_CODE"
+    end
+
+    it 'should be shipping_method.code' do
+      expect(shipping_rate.shipping_method_code).to eq("THE_CODE")
     end
   end
 end

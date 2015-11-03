@@ -32,7 +32,7 @@ module Spree
       alias_action :new_action, to: :create
       alias_action :show, to: :read
       alias_action :index, :read, to: :display
-
+      alias_action :create, :update, :destroy, to: :modify
 
       user ||= Spree.user_class.new
 
@@ -46,10 +46,7 @@ module Spree
         can [:read, :update], Order do |order, token|
           order.user == user || order.guest_token && token == order.guest_token
         end
-        can [:create, :read], Address
-        can :update, Address do |address|
-          user.bill_address == address || user.ship_address == address
-        end
+        can :display, CreditCard, user_id: user.id
         can :display, Product
         can :display, ProductProperty
         can :display, Property
@@ -67,6 +64,9 @@ module Spree
         ability = clazz.send(:new, user)
         @rules = rules + ability.send(:rules)
       end
+
+      # Protect admin and user roles
+      cannot [:update, :destroy], Role, name: ['admin']
     end
   end
 end

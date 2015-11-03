@@ -34,13 +34,13 @@ Examples
 --------
 
 If you want to accept all the defaults pass --auto_accept
-
+```
 spree install my_store --edge --auto_accept
-
+```
 to use a local clone of Spree, pass the --path option
-
+```
 spree install my_store --path=../spree
-
+```
 
 Options
 -------
@@ -48,8 +48,8 @@ Options
 * `--auto_accept` to answer yes to all questions
 * `--edge` to use the edge version of Spree
 * `--path=../spree` to use a local version of spree
+* `--branch=n-n-stable` to use git branch
 * `--git=git@github.com:cmar/spree.git` to use git version of spree
-  * `--branch=my_changes` to use git branch
   * `--ref=23423423423423` to use git reference
   * `--tag=my_tag` to use git tag
 

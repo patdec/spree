@@ -1,5 +1,5 @@
 Spree is an open source project and we encourage contributions.  Please see the
-[contributors guidelines](http://spreecommerce.com/documentation/contributing_to_spree.html)
+[contributors guidelines](https://guides.spreecommerce.com/developer/contributing.html)
 before contributing.
 
 ## Filing an issue
@@ -8,7 +8,7 @@ When filing an issue on the Spree project, please provide these details:
 
 * A comprehensive list of steps to reproduce the issue.
 * What you're *expecting* to happen compared with what's *actually* happening.
-* Your application's complete `Gemfile.lock`, and `Gemfile.lock` as text in a [Gist](https://gist.github.com) (*not as an image*)
+* Your application's complete `Gemfile`, and `Gemfile.lock` as text in a [Gist](https://gist.github.com) (*not as an image*)
 * Any relevant stack traces ("Full trace" preferred)
 
 In 99% of cases, this information is enough to determine the cause and solution
@@ -23,8 +23,8 @@ the information requested is provided.
 
 ## Pull requests
 
-We gladly accept pull requests to fix bugs and, in some circumstances, add new
-features to Spree.
+We gladly accept pull requests to add documentation, fix bugs and, in some circumstances,
+add new features to Spree.
 
 Here's a quick guide:
 
@@ -62,12 +62,13 @@ Syntax:
 
 * Two spaces, no tabs.
 * No trailing whitespace. Blank lines should not have any space.
-* Prefer &&/|| over and/or.
+* Use &&/|| over and/or.
 * `MyClass.my_method(my_arg)` not `my_method( my_arg )` or `my_method my_arg`.
 * `a = b` and not `a=b`.
 * `a_method { |block| ... }` and not `a_method { | block | ... }`
 * Follow the conventions you see used in the source already.
 * -> symbol over lambda
-* Ruby 1.9 hash syntax over Ruby 1.8 hash syntax
+* Ruby 1.9 hash syntax `{ key: value }` over Ruby 1.8 hash syntax `{ :key => value }`
+* Alphabetize the class methods to keep them organized
 
 And in case we didn't emphasize it enough: we love tests!

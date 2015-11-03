@@ -1,9 +1,9 @@
 module Spree
   module Admin
     class PaymentMethodsController < ResourceController
-      skip_before_filter :load_resource, :only => [:create]
-      before_filter :load_data
-      before_filter :validate_payment_method_provider, :only => :create
+      skip_before_action :load_resource, only: :create
+      before_action :load_data
+      before_action :validate_payment_method_provider, only: :create
 
       respond_to :html
 
@@ -13,7 +13,7 @@ module Spree
         invoke_callbacks(:create, :before)
         if @payment_method.save
           invoke_callbacks(:create, :after)
-          flash[:success] = Spree.t(:successfully_created, :resource => Spree.t(:payment_method))
+          flash[:success] = Spree.t(:successfully_created, resource: Spree.t(:payment_method))
           redirect_to edit_admin_payment_method_path(@payment_method)
         else
           invoke_callbacks(:create, :fails)
@@ -27,7 +27,7 @@ module Spree
         if @payment_method['type'].to_s != payment_method_type
           @payment_method.update_columns(
             type: payment_method_type,
-            updated_at: Time.now,
+            updated_at: Time.current,
           )
           @payment_method = PaymentMethod.find(params[:id])
         end
@@ -42,7 +42,7 @@ module Spree
 
         if @payment_method.update_attributes(attributes)
           invoke_callbacks(:update, :after)
-          flash[:success] = Spree.t(:successfully_updated, :resource => Spree.t(:payment_method))
+          flash[:success] = Spree.t(:successfully_updated, resource: Spree.t(:payment_method))
           redirect_to edit_admin_payment_method_path(@payment_method)
         else
           invoke_callbacks(:update, :fails)

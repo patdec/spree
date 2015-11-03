@@ -1,14 +1,18 @@
 module Spree
   class PaymentMethod < Spree::Base
     acts_as_paranoid
-    DISPLAY = [:both, :front_end, :back_end]
-    default_scope -> { where(deleted_at: nil) }
+    acts_as_list
 
-    scope :production, -> { where(environment: 'production') }
+    DISPLAY = [:both, :front_end, :back_end].freeze
+
+    scope :active,                 -> { where(active: true) }
+    scope :available,              -> { active.where(display_on: [:front_end, :back_end, :both]) }
+    scope :available_on_front_end, -> { active.where(display_on: [:front_end, :both]) }
+    scope :available_on_back_end,  -> { active.where(display_on: [:back_end, :both]) }
 
     validates :name, presence: true
 
-    has_many :payments, class_name: "Spree::Payment"
+    has_many :payments, class_name: "Spree::Payment", inverse_of: :payment_method
     has_many :credit_cards, class_name: "Spree::CreditCard"
 
     def self.providers
@@ -16,26 +20,14 @@ module Spree
     end
 
     def provider_class
-      raise 'You must implement provider_class method for this gateway.'
+      raise ::NotImplementedError, 'You must implement provider_class method for this gateway.'
     end
 
     # The class that will process payments for this payment type, used for @payment.source
     # e.g. CreditCard in the case of a the Gateway payment type
     # nil means the payment method doesn't require a source e.g. check
     def payment_source_class
-      raise 'You must implement payment_source_class method for this gateway.'
-    end
-
-    def self.available(display_on = 'both')
-      all.select do |p|
-        p.active &&
-        (p.display_on == display_on.to_s || p.display_on.blank?) &&
-        (p.environment == Rails.env || p.environment.blank?)
-      end
-    end
-
-    def self.active?
-      where(type: self.to_s, environment: Rails.env, active: true).count > 0
+      raise ::NotImplementedError, 'You must implement payment_source_class method for this gateway.'
     end
 
     def method_type
@@ -66,6 +58,10 @@ module Spree
 
     def supports?(source)
       true
+    end
+
+    def cancel(response)
+      raise ::NotImplementedError, 'You must implement cancel method for this payment method.'
     end
   end
 end

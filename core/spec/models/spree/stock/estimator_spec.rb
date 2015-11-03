@@ -2,65 +2,81 @@ require 'spec_helper'
 
 module Spree
   module Stock
-    describe Estimator do
+    describe Estimator, :type => :model do
       let!(:shipping_method) { create(:shipping_method) }
-      let(:package) { build(:stock_package_fulfilled) }
-      let(:order) { package.order }
+      let(:package) { build(:stock_package, contents: inventory_units.map { |i| ContentItem.new(inventory_unit) }) }
+      let(:order) { build(:order_with_line_items) }
+      let(:inventory_units) { order.inventory_units }
 
       subject { Estimator.new(order) }
 
       context "#shipping rates" do
         before(:each) do
           shipping_method.zones.first.members.create(:zoneable => order.ship_address.country)
-          ShippingMethod.any_instance.stub_chain(:calculator, :available?).and_return(true)
-          ShippingMethod.any_instance.stub_chain(:calculator, :compute).and_return(4.00)
-          ShippingMethod.any_instance.stub_chain(:calculator, :preferences).and_return({:currency => "USD"})
-          ShippingMethod.any_instance.stub_chain(:calculator, :marked_for_destruction?)
+          allow_any_instance_of(ShippingMethod).to receive_message_chain(:calculator, :available?).and_return(true)
+          allow_any_instance_of(ShippingMethod).to receive_message_chain(:calculator, :compute).and_return(4.00)
+          allow_any_instance_of(ShippingMethod).to receive_message_chain(:calculator, :preferences).and_return({:currency => currency})
+          allow_any_instance_of(ShippingMethod).to receive_message_chain(:calculator, :marked_for_destruction?)
 
-          package.stub(:shipping_methods => [shipping_method])
+          allow(package).to receive_messages(:shipping_methods => [shipping_method])
         end
 
-        it "returns shipping rates from a shipping method if the order's ship address is in the same zone" do
-          shipping_rates = subject.shipping_rates(package)
-          shipping_rates.first.cost.should eq 4.00
+        let(:currency) { "USD" }
+
+        shared_examples_for "shipping rate matches" do
+          it "returns shipping rates" do
+            shipping_rates = subject.shipping_rates(package)
+            expect(shipping_rates.first.cost).to eq 4.00
+          end
         end
 
-        it "does not return shipping rates from a shipping method if the order's ship address is in a different zone" do
-          shipping_method.zones.each{|z| z.members.delete_all}
-          shipping_rates = subject.shipping_rates(package)
-          shipping_rates.should == []
+        shared_examples_for "shipping rate doesn't match" do
+          it "does not return shipping rates" do
+            shipping_rates = subject.shipping_rates(package)
+            expect(shipping_rates).to eq([])
+          end
         end
 
-        it "does not return shipping rates from a shipping method if the calculator is not available for that order" do
-          ShippingMethod.any_instance.stub_chain(:calculator, :available?).and_return(false)
-          shipping_rates = subject.shipping_rates(package)
-          shipping_rates.should == []
+        context "when the order's ship address is in the same zone" do
+          it_should_behave_like "shipping rate matches"
         end
 
-        it "returns shipping rates from a shipping method if the currency matches the order's currency" do
-          shipping_rates = subject.shipping_rates(package)
-          shipping_rates.first.cost.should eq 4.00
+        context "when the order's ship address is in a different zone" do
+          before { shipping_method.zones.each{|z| z.members.delete_all} }
+          it_should_behave_like "shipping rate doesn't match"
         end
 
-        it "does not return shipping rates from a shipping method if the currency is different than the order's currency" do
-          order.currency = "GBP"
-          shipping_rates = subject.shipping_rates(package)
-          shipping_rates.should == []
+        context "when the calculator is not available for that order" do
+          before { allow_any_instance_of(ShippingMethod).to receive_message_chain(:calculator, :available?).and_return(false) }
+          it_should_behave_like "shipping rate doesn't match"
         end
 
-        it "does not return shipping rates if the shipping method's calculator raises an exception" do
-          ShippingMethod.any_instance.stub_chain(:calculator, :available?).and_raise(Exception, "Something went wrong!")
-          subject.should_receive(:log_calculator_exception)
-          lambda { subject.shipping_rates(package) }.should_not raise_error
+        context "when the currency is nil" do
+          let(:currency) { nil }
+          it_should_behave_like "shipping rate matches"
+        end
+
+        context "when the currency is an empty string" do
+          let(:currency) { "" }
+          it_should_behave_like "shipping rate matches"
+        end
+
+        context "when the current matches the order's currency" do
+          it_should_behave_like "shipping rate matches"
+        end
+
+        context "if the currency is different than the order's currency" do
+          let(:currency) { "GBP" }
+          it_should_behave_like "shipping rate doesn't match"
         end
 
         it "sorts shipping rates by cost" do
           shipping_methods = 3.times.map { create(:shipping_method) }
-          shipping_methods[0].stub_chain(:calculator, :compute).and_return(5.00)
-          shipping_methods[1].stub_chain(:calculator, :compute).and_return(3.00)
-          shipping_methods[2].stub_chain(:calculator, :compute).and_return(4.00)
+          allow(shipping_methods[0]).to receive_message_chain(:calculator, :compute).and_return(5.00)
+          allow(shipping_methods[1]).to receive_message_chain(:calculator, :compute).and_return(3.00)
+          allow(shipping_methods[2]).to receive_message_chain(:calculator, :compute).and_return(4.00)
 
-          subject.stub(:shipping_methods).and_return(shipping_methods)
+          allow(subject).to receive(:shipping_methods).and_return(shipping_methods)
 
           expect(subject.shipping_rates(package).map(&:cost)).to eq %w[3.00 4.00 5.00].map(&BigDecimal.method(:new))
         end
@@ -69,19 +85,19 @@ module Spree
           let(:shipping_methods) { 2.times.map { create(:shipping_method) } }
 
           it "selects the most affordable shipping rate" do
-            shipping_methods[0].stub_chain(:calculator, :compute).and_return(5.00)
-            shipping_methods[1].stub_chain(:calculator, :compute).and_return(3.00)
+            allow(shipping_methods[0]).to receive_message_chain(:calculator, :compute).and_return(5.00)
+            allow(shipping_methods[1]).to receive_message_chain(:calculator, :compute).and_return(3.00)
 
-            subject.stub(:shipping_methods).and_return(shipping_methods)
+            allow(subject).to receive(:shipping_methods).and_return(shipping_methods)
 
             expect(subject.shipping_rates(package).sort_by(&:cost).map(&:selected)).to eq [true, false]
           end
 
           it "selects the most affordable shipping rate and doesn't raise exception over nil cost" do
-            shipping_methods[0].stub_chain(:calculator, :compute).and_return(1.00)
-            shipping_methods[1].stub_chain(:calculator, :compute).and_return(nil)
+            allow(shipping_methods[0]).to receive_message_chain(:calculator, :compute).and_return(1.00)
+            allow(shipping_methods[1]).to receive_message_chain(:calculator, :compute).and_return(nil)
 
-            subject.stub(:shipping_methods).and_return(shipping_methods)
+            allow(subject).to receive(:shipping_methods).and_return(shipping_methods)
 
             subject.shipping_rates(package)
           end
@@ -92,9 +108,9 @@ module Spree
           let(:generic_method) { create(:shipping_method) }
 
           before do
-            backend_method.stub_chain(:calculator, :compute).and_return(0.00)
-            generic_method.stub_chain(:calculator, :compute).and_return(5.00)
-            subject.stub(:shipping_methods).and_return([backend_method, generic_method])
+            allow(backend_method).to receive_message_chain(:calculator, :compute).and_return(0.00)
+            allow(generic_method).to receive_message_chain(:calculator, :compute).and_return(5.00)
+            allow(package).to receive(:shipping_methods).and_return([backend_method, generic_method])
           end
 
           it "does not return backend rates at all" do
@@ -122,6 +138,62 @@ module Spree
           it "links the shipping rate and the tax rate" do
             shipping_rates = subject.shipping_rates(package)
             expect(shipping_rates.first.tax_rate).to eq(tax_rate)
+          end
+        end
+
+        context "VAT price calculation" do
+          let(:tax_category) { create :tax_category }
+          let!(:shipping_method) { create(:shipping_method, tax_category: tax_category) }
+
+          let(:default_zone) { create(:zone_with_country, default_tax: true) }
+          let!(:default_vat) do
+            create :tax_rate,
+                   included_in_price: true,
+                   zone: default_zone,
+                   amount: 0.2,
+                   tax_category: shipping_method.tax_category
+          end
+
+          context "when the order does not have a tax zone" do
+            before { allow(order).to receive(:tax_zone).and_return nil }
+            it_should_behave_like "shipping rate matches"
+          end
+
+          context "when the order's tax zone is the default zone" do
+            before { allow(order).to receive(:tax_zone).and_return(default_zone) }
+            it_should_behave_like "shipping rate matches"
+          end
+
+          context "when the order's tax zone is a non-VAT zone" do
+            let!(:zone_without_vat) { create(:zone_with_country) }
+            before { allow(order).to receive(:tax_zone).and_return(zone_without_vat) }
+
+            it 'deducts the default VAT from the cost' do
+              shipping_rates = subject.shipping_rates(package)
+              # deduct default vat: 4.00 / 1.2 = 3.33 (rounded)
+              expect(shipping_rates.first.cost).to eq(3.33)
+            end
+          end
+
+          context "when the order's tax zone is a zone with VAT outside the default zone" do
+            let(:other_vat_zone) { create(:zone_with_country) }
+            let!(:other_vat) do
+              create :tax_rate,
+                     included_in_price: true,
+                     zone: other_vat_zone,
+                     amount: 0.3,
+                     tax_category: shipping_method.tax_category
+            end
+
+            before { allow(order).to receive(:tax_zone).and_return(other_vat_zone) }
+
+            it 'deducts the default vat and applies the foreign vat to calculate the price' do
+              shipping_rates = subject.shipping_rates(package)
+              #
+              # deduct default vat: 4.00 / 1.2 = 3.33 (rounded)
+              # apply foreign vat: 3.33 * 1.3 = 4.33 (rounded)
+              expect(shipping_rates.first.cost).to eq(4.33)
+            end
           end
         end
       end

@@ -1,11 +1,14 @@
 module Spree
   class Classification < Spree::Base
     self.table_name = 'spree_products_taxons'
-    acts_as_list
-    belongs_to :product, class_name: "Spree::Product", inverse_of: :classifications
-    belongs_to :taxon, class_name: "Spree::Taxon", inverse_of: :classifications
+    acts_as_list scope: :taxon
+
+    with_options inverse_of: :classifications, touch: true do
+      belongs_to :product, class_name: "Spree::Product"
+      belongs_to :taxon, class_name: "Spree::Taxon"
+    end
 
     # For #3494
-    validates_uniqueness_of :taxon_id, :scope => :product_id, :message => :already_linked
+    validates :taxon_id, uniqueness: { scope: :product_id, message: :already_linked }
   end
 end

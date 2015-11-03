@@ -87,7 +87,7 @@ module Spree
     #   Spree::Product.taxons_id_eq([x,y])
     add_search_scope :in_taxons do |*taxons|
       taxons = get_taxons(taxons)
-      taxons.first ? prepare_taxon_conditions(taxons) : scoped
+      taxons.first ? prepare_taxon_conditions(taxons) : where(nil)
     end
 
     # a scope that finds all products having property specified by name, object or id
@@ -186,14 +186,18 @@ module Spree
       where("#{Product.quoted_table_name}.deleted_at IS NULL or #{Product.quoted_table_name}.deleted_at >= ?", Time.zone.now)
     end
 
+    add_search_scope :not_discontinued do
+      where("#{Product.quoted_table_name}.discontinue_on IS NULL or #{Product.quoted_table_name}.discontinue_on >= ?", Time.zone.now)
+    end
+
     # Can't use add_search_scope for this as it needs a default argument
     def self.available(available_on = nil, currency = nil)
-      joins(:master => :prices).where("#{Product.quoted_table_name}.available_on <= ?", available_on || Time.now)
+      not_discontinued.joins(:master => :prices).where("#{Product.quoted_table_name}.available_on <= ?", available_on || Time.current)
     end
     search_scopes << :available
 
     def self.active(currency = nil)
-      not_deleted.available(nil, currency)
+      not_discontinued.available(nil, currency)
     end
     search_scopes << :active
 
@@ -214,7 +218,7 @@ module Spree
       #   "spree_variants" ON "spree_variants"."product_id" = "spree_products"."id" AND "spree_variants"."is_master" = 't'
       #   AND "spree_variants"."deleted_at" IS NULL LEFT OUTER JOIN "spree_prices" ON
       #   "spree_prices"."variant_id" = "spree_variants"."id" AND "spree_prices"."currency" = 'USD'
-      #   AND "spree_prices"."deleted_at" IS NULL WHERE "spree_products"."deleted_at" IS NULL AND ('t'='t') 
+      #   AND "spree_prices"."deleted_at" IS NULL WHERE "spree_products"."deleted_at" IS NULL AND ('t'='t')
       #   ORDER BY "spree_prices"."amount" ASC LIMIT 10 OFFSET 0
       #
       # Don't allow sort_column, a variable coming from params,

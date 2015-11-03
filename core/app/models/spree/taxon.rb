@@ -1,15 +1,32 @@
+# TODO let friendly id take care of sanitizing the url
+require 'stringex'
+
 module Spree
   class Taxon < Spree::Base
+    extend FriendlyId
+    friendly_id :permalink, slug_column: :permalink, use: :slugged
+    before_create :set_permalink
+
     acts_as_nested_set dependent: :destroy
 
     belongs_to :taxonomy, class_name: 'Spree::Taxonomy', inverse_of: :taxons
     has_many :classifications, -> { order(:position) }, dependent: :delete_all, inverse_of: :taxon
     has_many :products, through: :classifications
 
-    before_create :set_permalink
+    has_many :prototype_taxons, class_name: 'Spree::PrototypeTaxon'
+    has_many :prototypes, through: :prototype_taxons, class_name: 'Spree::Prototype'
+
+    has_many :promotion_rule_taxons, class_name: 'Spree::PromotionRuleTaxon'
+    has_many :promotion_rules, through: :promotion_rule_taxons, class_name: 'Spree::PromotionRule'
 
     validates :name, presence: true
+    with_options length: { maximum: 255 }, allow_blank: true do
+      validates :meta_keywords
+      validates :meta_description
+      validates :meta_title
+    end
 
+    after_save :touch_ancestors_and_taxonomy
     after_touch :touch_ancestors_and_taxonomy
 
     has_attached_file :icon,
@@ -20,7 +37,7 @@ module Spree
       default_url: '/assets/default_taxon.png'
 
     validates_attachment :icon,
-      content_type: { content_type: ["image/jpg", "image/jpeg", "image/png"] }
+      content_type: { content_type: ["image/jpg", "image/jpeg", "image/png", "image/gif"] }
 
     # indicate which filters should be used for a taxon
     # this method should be customized to your own site
@@ -36,14 +53,14 @@ module Spree
 
     # Return meta_title if set otherwise generates from root name and/or taxon name
     def seo_title
-      if meta_title
+      unless meta_title.blank?
         meta_title
       else
         root? ? name : "#{root.name} - #{name}"
       end
     end
 
-    # Creates permalink based on Stringex's .to_url method
+    # Creates permalink base for friendly_id
     def set_permalink
       if parent.present?
         self.permalink = [parent.permalink, (permalink.blank? ? name.to_url : permalink.split('/').last)].join('/')
@@ -52,14 +69,8 @@ module Spree
       end
     end
 
-    # For #2759
-    def to_param
-      permalink
-    end
-
     def active_products
-      scope = products.active
-      scope
+      products.active
     end
 
     def pretty_name
@@ -83,9 +94,9 @@ module Spree
 
     def touch_ancestors_and_taxonomy
       # Touches all ancestors at once to avoid recursive taxonomy touch, and reduce queries.
-      self.class.where(id: ancestors.pluck(:id)).update_all(updated_at: Time.now)
+      self.class.where(id: ancestors.pluck(:id)).update_all(updated_at: Time.current)
       # Have taxonomy touch happen in #touch_ancestors_and_taxonomy rather than association option in order for imports to override.
-      taxonomy.touch
+      taxonomy.try!(:touch)
     end
   end
 end

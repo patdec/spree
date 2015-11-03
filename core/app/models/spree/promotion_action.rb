@@ -1,4 +1,4 @@
-# Base class for all types of promotion action.
+## Base class for all types of promotion action.
 # PromotionActions perform the necessary tasks when a promotion is activated by an event and determined to be eligible.
 module Spree
   class PromotionAction < Spree::Base
@@ -14,6 +14,12 @@ module Spree
     # the key :user which allows user based actions to be performed in addition to actions on the order
     def perform(options = {})
       raise 'perform should be implemented in a sub-class of PromotionAction'
+    end
+
+    protected
+
+    def label
+      Spree.t(:promotion_label, name: promotion.name)
     end
   end
 end

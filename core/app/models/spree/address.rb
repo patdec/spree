@@ -1,18 +1,24 @@
 module Spree
   class Address < Spree::Base
+    require 'twitter_cldr'
+
     belongs_to :country, class_name: "Spree::Country"
     belongs_to :state, class_name: "Spree::State"
 
     has_many :shipments, inverse_of: :address
 
-    validates :firstname, :lastname, :address1, :city, :country, presence: true
-    validates :zipcode, presence: true, if: :require_zipcode?
-    validates :phone, presence: true, if: :require_phone?
+    with_options presence: true do
+      validates :firstname, :lastname, :address1, :city, :country
+      validates :zipcode, if: :require_zipcode?
+      validates :phone, if: :require_phone?
+    end
 
-    validate :state_validate
+    validate :state_validate, :postal_code_validate
 
     alias_attribute :first_name, :firstname
     alias_attribute :last_name, :lastname
+
+    self.whitelisted_ransackable_attributes = %w[firstname lastname company]
 
     def self.build_default
       country = Spree::Country.find(Spree::Config[:default_country_id]) rescue Spree::Country.first
@@ -20,8 +26,8 @@ module Spree
     end
 
     def self.default(user = nil, kind = "bill")
-      if user
-        user.send(:"#{kind}_address") || build_default
+      if user && user_address = user.public_send(:"#{kind}_address")
+        user_address.clone
       else
         build_default
       end
@@ -59,13 +65,13 @@ module Spree
       self_attrs = self.attributes
       other_attrs = other_address.respond_to?(:attributes) ? other_address.attributes : {}
 
-      [self_attrs, other_attrs].each { |attrs| attrs.except!('id', 'created_at', 'updated_at', 'order_id') }
+      [self_attrs, other_attrs].each { |attrs| attrs.except!('id', 'created_at', 'updated_at') }
 
       self_attrs == other_attrs
     end
 
     def empty?
-      attributes.except('id', 'created_at', 'updated_at', 'order_id', 'country_id').all? { |_, v| v.nil? }
+      attributes.except('id', 'created_at', 'updated_at', 'country_id').all? { |_, v| v.nil? }
     end
 
     # Generates an ActiveMerchant compatible address hash
@@ -126,6 +132,14 @@ module Spree
 
         # ensure at least one state field is populated
         errors.add :state, :blank if state.blank? && state_name.blank?
+      end
+
+      def postal_code_validate
+        return if country.blank? || country.iso.blank? || !require_zipcode?
+        return if !TwitterCldr::Shared::PostalCodes.territories.include?(country.iso.downcase.to_sym)
+
+        postal_code = TwitterCldr::Shared::PostalCodes.for_territory(country.iso)
+        errors.add(:zipcode, :invalid) if !postal_code.valid?(zipcode.to_s.strip)
       end
   end
 end

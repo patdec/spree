@@ -1,20 +1,22 @@
 require 'spec_helper'
 
-describe Spree::ProductProperty do
-
-  context "validations" do
-    it "should validate length of value" do
-      pp = create(:product_property)
-      pp.value = "x" * 256
-      pp.should_not be_valid
-    end
-  end
-
+describe Spree::ProductProperty, :type => :model do
   context "touching" do
     it "should update product" do
       pp = create(:product_property)
-      pp.product.should_receive(:touch)
+      expect(pp.product).to receive(:touch)
       pp.touch
+    end
+  end
+
+  context 'property_name=' do
+    before do
+      @pp = create(:product_property)
+    end
+
+    it "should assign property" do
+      @pp.property_name = "Size"
+      expect(@pp.property.name).to eq('Size')
     end
   end
 end

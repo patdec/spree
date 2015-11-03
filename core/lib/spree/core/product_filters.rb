@@ -9,7 +9,7 @@ module Spree
     #   2) Add it to the config load path, or require it in an initializer, e.g...
     #
     #      # config/initializers/spree.rb
-    #      require 'spree/product_filters'
+    #      require 'spree/core/product_filters'
     #
 
     # set up some basic filters for use with products
@@ -143,8 +143,7 @@ module Spree
         brand_property = Spree::Property.find_by(name: 'brand')
         scope = Spree::ProductProperty.where(property: brand_property).
           joins(product: :taxons).
-          where("#{Spree::Taxon.table_name}.id" => [taxon] + taxon.descendants).
-          scoped
+          where("#{Spree::Taxon.table_name}.id" => [taxon] + taxon.descendants)
         brands = scope.pluck(:value).uniq
         {
           name:   'Applicable Brands',
